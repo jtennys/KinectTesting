@@ -1,0 +1,20 @@
+<package>
+  <description brief="kinect_testing">
+
+     kinect_testing
+
+  </description>
+  <author>jason</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/kinect_testing</url>
+  <depend package="std_msgs"/>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+  <depend package="pcl_ros"/>
+  <depend package="openni"/>
+  <depend package="sensor_msgs"/>
+  <depend package="pcl_visualization"/>
+</package>
+
+
