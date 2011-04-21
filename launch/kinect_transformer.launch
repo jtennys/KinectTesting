@@ -1,4 +1,4 @@
 <launch>
-   <node pkg="kinect_testing" name="transformer1" type="kinect_transformer"/>
-   <node pkg="kinect_testing" name="vrml1" type="kinect_vrml" output="screen"/>
+   <arg name="filename" default="output"/>
+   <node pkg="kinect_testing" name="transformer1" type="kinect_transformer" args="$(arg filename) $(find kinect_testing)" output="screen"/>
 </launch>

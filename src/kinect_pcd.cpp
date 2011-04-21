@@ -1,6 +1,6 @@
 // Filename: kinect_pcd.cpp
 // Author: Jason Tennyson
-// Data: 4-14-11
+// Date: 4-14-11
 // 
 // This file is designed to be used after the openni_camera driver is launched
 // for use with the Microsoft KINECT.  It reads a single point cloud message
@@ -28,7 +28,7 @@ std::string FILE_NAME = "";
 std::string FILE_PATH = "";
 
 // The name of the folder in the root directory where all of the pcd files are stored.
-const std::string FILE_FOLDER = "PCDs";
+const std::string FILE_FOLDER = "pcd_files";
 
 void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
 {

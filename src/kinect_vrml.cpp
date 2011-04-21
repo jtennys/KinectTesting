@@ -1,6 +1,6 @@
 // Filename: kinect_vrml.cpp
 // Author: Jason Tennyson
-// Data: 4-7-11
+// Date: 4-7-11
 // 
 // This file is designed to be used after the openni_camera driver is launched
 // for use with the Microsoft KINECT.  It reads a single point cloud message
@@ -88,9 +88,9 @@ void pcdCallback(const sensor_msgs::PointCloud2 msg)
       // Extract the bytes that we need for rgb in the pts file.
       // This nasty cast converts the rgb float to an int that we can bit mask.
       int rgb = *reinterpret_cast<int*>(&cloud->points[i].rgb);
-      pts_file << (float)((rgb >> 16) & 0xff)/255.0 << " ";
-      pts_file << (float)((rgb >> 8) & 0xff)/255.0 << " ";
-      pts_file << (float)(rgb & 0xff)/255.0 << ",\n";
+      pts_file << ((rgb >> 16) & 0xff) << " ";
+      pts_file << ((rgb >> 8) & 0xff) << " ";
+      pts_file << (rgb & 0xff) << "\n";
 
       // Print only the points to the vrml file.
       for(int k = 0; k < numSpaces; k++) { vrml_file << " "; }
