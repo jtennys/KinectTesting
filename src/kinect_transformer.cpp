@@ -5,10 +5,10 @@
 // This file reads a text file that contains file names.
 // The file names point to point clouds that have previously
 // been recorded, and the x, y, z, theta values that define
-// each cloud's offset from 0,0,0,0 is included with those files.
+// each cloud's offset from 0,0,0,0,0,0 is included with those files.
 
-//testing1,-0.1212,0,0,0,-30,0
-//testing2,0.1212,0,0,0,30,0
+// testing1,-0.1212,0,0,0,-30,0
+// testing2,0.1212,0,0,0,30,0
 
 #include <ros/ros.h>
 #include <fstream>

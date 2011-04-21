@@ -1,0 +1,5 @@
+<launch>
+  <include file="$(find openni_camera)/launch/openni_kinect.launch"/>
+  <arg name="filename" default="test_cloud"/>
+  <node pkg="kinect_testing" name="pcd1" type="kinect_pcd" args="$(arg filename) $(find kinect_testing)" output="screen"/>
+</launch>

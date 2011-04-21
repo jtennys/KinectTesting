@@ -8,6 +8,7 @@
 
 #include <ros/ros.h>
 #include <time.h>
+#include <unistd.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 
@@ -23,6 +24,12 @@ bool DATA_FULL = false;
 // The user-specified filename that we are going to save the point cloud data to.
 std::string FILE_NAME = "";
 
+// The file path that we extract from the launch file if we run through it.
+std::string FILE_PATH = "";
+
+// The name of the folder in the root directory where all of the pcd files are stored.
+const std::string FILE_FOLDER = "PCDs";
+
 void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
 {
   if(!DATA_FULL)
@@ -36,10 +43,14 @@ void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
     // Fill the empty cloud with data from the kinect.
     pcl::fromROSMsg(*msg,*cloud);
 
+    // Changed directories to the folder where we keep the .pcd files.
+    chdir(FILE_PATH.c_str());
+
+    // Write the point cloud data to disk.
     writer.write(FILE_NAME+".pcd", *cloud, false);
 
     // We are done running the program.
-    ROS_INFO("Done!");
+    ROS_INFO("Done! Press Ctrl+C to shut down the kinect driver...");
     DATA_FULL = true;
   }
 }
@@ -57,29 +68,41 @@ int main (int argc, char** argv)
     // We parse through the argument and drop off extensions in case the user added one.
     for(int i = 0; ((argv[1][i] != '.') && (argv[1][i] != '\0')); i++)
     {
-       // Since we have not hit a period or the end of the argument, tack on the char.
-       FILE_NAME += argv[1][i];
+      // Since we have not hit a period or the end of the argument, tack on the char.
+      FILE_NAME += argv[1][i];
     }
-  }
 
-  // This time delay allows you to start the program and walk away if it's in view of the Kinect.
-  ROS_INFO("You now have %d seconds to back away!",CAM_DELAY);
-  sleep(CAM_DELAY);
-  ROS_INFO("Time is up! Say cheese!");
+    // The launch file sends the path to the root folder of this package as an argument.
+    if(argc > 2)
+    {
+      FILE_PATH = argv[2];
+      FILE_PATH += "/";
+      FILE_PATH += FILE_FOLDER;
+    }
+    else
+    {
+      FILE_PATH = FILE_FOLDER;
+    }
 
-  // Initializes the node as a kinect listener.
-  ros::init(argc, argv, "kinect_to_pcd");
+    // This time delay allows you to start the program and walk away if it's in view of the Kinect.
+    ROS_INFO("You now have %d seconds to back away!",CAM_DELAY);
+    sleep(CAM_DELAY);
+    ROS_INFO("Time is up!");
 
-  // Create an empty node handle.
-  ros::NodeHandle n;
+    // Initializes the node as a kinect listener.
+    ros::init(argc, argv, "kinect_to_pcd");
 
-  // Create a subscriber on the depth topic.
-  ros::Subscriber sub = n.subscribe("camera/depth/points2", 1000, pcdCallback);
+    // Create an empty node handle.
+    ros::NodeHandle n;
 
-  // Waits for new data. Then, the callback function is executed.
-  while((!DATA_FULL) && ros::ok())
-  {
-    ros::spinOnce();
+    // Create a subscriber on the depth topic.
+    ros::Subscriber sub = n.subscribe("camera/depth/points2", 1000, pcdCallback);
+
+    // Waits for new data. Then, the callback function is executed.
+    while((!DATA_FULL) && ros::ok())
+    {
+      ros::spinOnce();
+    }
   }
 
   return (0);
