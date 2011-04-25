@@ -10,7 +10,6 @@
 #include <ros/ros.h>
 #include <fstream>
 #include <cstdlib>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <math.h>
 #include <pcl/io/pcd_io.h>
@@ -205,8 +204,15 @@ void writePTS(const char* pts_filename, const char* root)
   pts_out << "\n";
 
   // Close our input and output files.
-  pcds_in.close();
-  pts_out.close();
+  if(pcds_in.is_open())
+  {
+    pcds_in.close();
+  }
+
+  if(pts_out.is_open())
+  {
+    pts_out.close();
+  }
 }
 
 void writeVRML(const char* pts_filename, const char* vrml_filename, const char* root)
