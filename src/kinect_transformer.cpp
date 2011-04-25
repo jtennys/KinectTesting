@@ -390,14 +390,21 @@ void writeVRML(const char* pts_filename, const char* vrml_filename, const char* 
       numSpaces -= TAB_SIZE;
       for(int i = 0; i < numSpaces; i++) { vrml_out << " "; }
       vrml_out << "} # end of Group\n";
-
-      // Close the files.
-      vrml_out.close();
-      pts_in.close();
     }
   }
   else
   {
     ROS_INFO("Bad root path given!");
+  }
+
+  // Close the files.
+  if(vrml_out.is_open())
+  {
+    vrml_out.close();
+  }
+
+  if(pts_in.is_open())
+  {
+    pts_in.close();
   }
 }
