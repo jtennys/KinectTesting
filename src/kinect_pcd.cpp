@@ -1,6 +1,6 @@
 // Filename: kinect_pcd.cpp
 // Author: Jason Tennyson
-// Date: 4-14-11
+// Date: 4-25-11
 // 
 // This file is designed to be used after the openni_camera driver is launched
 // for use with the Microsoft Kinect.  It reads a single point cloud message
@@ -11,6 +11,7 @@
 #include <cv.h>
 #include <highgui.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 
@@ -45,7 +46,7 @@ void saveImage(const pcl::PointCloud<PointT>::Ptr cloud);
 // point cloud message.
 void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg);
 
-int main (int argc, char** argv)
+int main(int argc, char** argv)
 {
   // Check to see that the user specified a file name.
   if(argc < 2)
@@ -87,40 +88,66 @@ int main (int argc, char** argv)
 
 void saveImage(const pcl::PointCloud<PointT>::Ptr cloud)
 {
-  // Create a blank cv image object.
-  IplImage* img = cvCreateImage(cvSize(cloud->width,cloud->height), IPL_DEPTH_8U, 3);
+  // Integer return value when attempting to change a directory.
+  int good_dir = 0;
 
-  // Populate the image object with rgb data from the point cloud we received.
-  for(int i = 0; i < cloud->height; i++)
+  // Change directories to the root folder.
+  if(chdir(FILE_PATH.c_str()) == 0)
   {
-    for(int j = 0; j < cloud->width; j++)
+    good_dir = chdir(IMG_FOLDER);
+
+    // If we can't change directories to the image folder, we assume it doesn't exist and make it.
+    if(good_dir != 0)
     {
-      // Store the floating point rgb value as an integer for bit masking.
-      int rgb = *reinterpret_cast<int*>(&cloud->points[i*cloud->width + j].rgb);
-      ((uchar *)(img->imageData + i*img->widthStep))[j*img->nChannels + 0] = (rgb & 0xff);
-      ((uchar *)(img->imageData + i*img->widthStep))[j*img->nChannels + 1] = ((rgb >> 8) & 0xff);
-      ((uchar *)(img->imageData + i*img->widthStep))[j*img->nChannels + 2] = ((rgb >> 16) & 0xff);
+      // Make the image folder.
+      if(mkdir(IMG_FOLDER, 0755) == 0)
+      {
+        // If successful, change directories into this image folder.
+        good_dir = chdir(IMG_FOLDER);
+      }
+      else
+      {
+        ROS_INFO("Program failed, likely due to improper read/write permissions in this directory.");
+      }
+    }
+
+    // If we are in the right directory, save the image file.
+    if(good_dir == 0)
+    {
+      // Create a blank cv image object.
+      IplImage* img = cvCreateImage(cvSize(cloud->width,cloud->height), IPL_DEPTH_8U, 3);
+
+      // Populate the image object with rgb data from the point cloud we received.
+      for(unsigned int i = 0; i < cloud->height; i++)
+      {
+        for(unsigned int j = 0; j < cloud->width; j++)
+        {
+          // Store the floating point rgb value as an integer for bit masking.
+          int rgb = *reinterpret_cast<int*>(&cloud->points[i*cloud->width + j].rgb);
+          ((uchar *)(img->imageData + i*img->widthStep))[j*img->nChannels + 0] = (rgb & 0xff);
+          ((uchar *)(img->imageData + i*img->widthStep))[j*img->nChannels + 1] = ((rgb >> 8) & 0xff);
+          ((uchar *)(img->imageData + i*img->widthStep))[j*img->nChannels + 2] = ((rgb >> 16) & 0xff);
+        }
+      }
+
+      // Create a string and add the file name and its desired image extension type.
+      std::string img_filename = FILE_NAME;
+      img_filename += ".";
+      img_filename += IMG_EXTENSION;
+
+      // Save the image object to a file with the given name.
+      cvSaveImage(img_filename.c_str(),img);
+
+      // Delete the image object.
+      cvReleaseImage(&img);
     }
   }
-
-  // Change directories to the image folder before saving the image.
-  chdir(FILE_PATH.c_str());
-  chdir(IMG_FOLDER);
-
-  // Create a string and add the file name and its desired image extension type.
-  std::string img_filename = FILE_NAME;
-  img_filename += ".";
-  img_filename += IMG_EXTENSION;
-
-  // Save the image object to a file with the given name.
-  cvSaveImage(img_filename.c_str(),img);
-
-  // Delete the image object.
-  cvReleaseImage(&img);
 }
 
 void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
 {
+  int good_dir = 0;
+
   if(!DATA_FULL)
   {
     // Used to store a point cloud to a file.
@@ -132,21 +159,45 @@ void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
     // Fill the empty cloud with data from the kinect.
     pcl::fromROSMsg(*msg,*cloud);
 
-    // Changed directories to the folder where we keep the .pcd files.
-    chdir(FILE_PATH.c_str());
-    chdir(PCD_FOLDER);
+    // If our root path is correct, continue.
+    if(chdir(FILE_PATH.c_str()) == 0)
+    {
+      good_dir = chdir(PCD_FOLDER);
 
-    // Write the point cloud data to disk.
-    writer.write(FILE_NAME+".pcd", *cloud, false);
+      // If we aren't in the right directory, make the directory.
+      if(good_dir != 0)
+      {
+        // If we are successful in making the directory, change directories to that directory.
+        if(mkdir(PCD_FOLDER, 0755) == 0)
+        {
+          good_dir = chdir(PCD_FOLDER);
+        }
+        else
+        {
+          ROS_INFO("Program failed, likely due to improper read/write permissions in this directory.");
+        }
+      }
 
-    // Write the RGB image to disk.
-    saveImage(cloud);
+      // If we are now in the correct directory, write the data to disk.
+      if(good_dir == 0)
+      {
+        // Write the point cloud data to disk.
+        writer.write(FILE_NAME+".pcd", *cloud, false);
 
-    // We are done running the program.
-    ROS_INFO("Done! Data was saved as %s.pcd and %s.%s!",FILE_NAME.c_str(),FILE_NAME.c_str(),IMG_EXTENSION);
-    ROS_INFO("Press Ctrl+C to shut down the Kinect driver...");
+        // Write the RGB image to disk.
+        saveImage(cloud);
 
-    // We have received our data and are done here.
-    DATA_FULL = true;
+        // We are done running the program.
+        ROS_INFO("Done! Data was saved as %s.pcd and %s.%s!",FILE_NAME.c_str(),FILE_NAME.c_str(),IMG_EXTENSION);
+        ROS_INFO("Press Ctrl+C to shut down the Kinect driver...");
+
+        // We have received our data and are done here.
+        DATA_FULL = true;
+      }
+    }
+    else
+    {
+      ROS_INFO("Incorrect root path given!");
+    }
   }
 }
