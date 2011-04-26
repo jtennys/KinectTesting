@@ -11,6 +11,7 @@
 #include <cv.h>
 #include <highgui.h>
 #include <unistd.h>
+#include <fstream>
 #include <sys/stat.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
@@ -19,11 +20,12 @@
 #define CAM_DELAY (5)
 
 // These are the defined folder names for all files.
-#define PCD_FOLDER ("pcd_files")
+#define PTS_FOLDER ("indiv_pts")
 #define IMG_FOLDER ("image_files")
 
-// The file extension of the image that we save from the kinect.
+// The file extensions used.
 #define IMG_EXTENSION ("bmp")
+#define PTS_EXTENSION ("pts")
 
 // The templated pcl object type.
 typedef pcl::PointXYZRGB PointT;
@@ -146,13 +148,11 @@ void saveImage(const pcl::PointCloud<PointT>::Ptr cloud)
 
 void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
 {
+  // The return value of an attempt to change or make directory is stored in this.
   int good_dir = 0;
 
   if(!DATA_FULL)
   {
-    // Used to store a point cloud to a file.
-    pcl::PCDWriter writer;
-
     // An empty cloud.
     pcl::PointCloud<PointT>::Ptr cloud (new pcl::PointCloud<PointT> ());
 
@@ -162,15 +162,15 @@ void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
     // If our root path is correct, continue.
     if(chdir(FILE_PATH.c_str()) == 0)
     {
-      good_dir = chdir(PCD_FOLDER);
+      good_dir = chdir(PTS_FOLDER);
 
       // If we aren't in the right directory, make the directory.
       if(good_dir != 0)
       {
         // If we are successful in making the directory, change directories to that directory.
-        if(mkdir(PCD_FOLDER, 0755) == 0)
+        if(mkdir(PTS_FOLDER, 0755) == 0)
         {
-          good_dir = chdir(PCD_FOLDER);
+          good_dir = chdir(PTS_FOLDER);
         }
         else
         {
@@ -181,14 +181,39 @@ void pcdCallback(const sensor_msgs::PointCloud2::Ptr msg)
       // If we are now in the correct directory, write the data to disk.
       if(good_dir == 0)
       {
+        // Create the file name with extension.
+        std::string pts_file = FILE_NAME;
+        pts_file += ".";
+        pts_file += PTS_EXTENSION;
+
+        // Open the output file stream.
+        std::ofstream pts_out(pts_file.c_str());
+
         // Write the point cloud data to disk.
-        writer.write(FILE_NAME+".pcd", *cloud, false);
+        for(unsigned int i = 0; i < cloud->points.size(); i++)
+        {
+          // If x y and z are numbers, we print the line.
+          if(!((cloud->points[i].x != cloud->points[i].x) ||
+               (cloud->points[i].y != cloud->points[i].y) ||
+               (cloud->points[i].z != cloud->points[i].z)))
+          {
+            // Print the distance information to the pts file followed by a trash buffer value.
+            pts_out << cloud->points[i].x << " " << cloud->points[i].y << " " << cloud->points[i].z << " 0 ";
+
+            // Print the RGB information and finish with a new line character.
+            int rgb = *reinterpret_cast<int*>(&cloud->points[i].rgb);
+            pts_out << ((rgb >> 16) & 0xff) << " " << ((rgb >> 8) & 0xff) << " " << (rgb & 0xff) << "\n";
+          }
+        }
+
+        // Print out one last new line at the end of the pts file.
+        pts_out << "\n";
 
         // Write the RGB image to disk.
         saveImage(cloud);
 
         // We are done running the program.
-        ROS_INFO("Done! Data was saved as %s.pcd and %s.%s!",FILE_NAME.c_str(),FILE_NAME.c_str(),IMG_EXTENSION);
+        ROS_INFO("Done! Data was saved as %s.%s and %s.%s!",FILE_NAME.c_str(),PTS_EXTENSION,FILE_NAME.c_str(),IMG_EXTENSION);
         ROS_INFO("Press Ctrl+C to shut down the Kinect driver...");
 
         // We have received our data and are done here.

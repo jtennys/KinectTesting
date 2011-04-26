@@ -19,14 +19,14 @@
 #include "pcl/common/transform.hpp"
 
 // The file that the file names and parameters are read from.
-#define PCDS_FILE ("pcds_file.txt")
+#define PTS_INFO_FILE ("pts_info_file.txt")
 
 // The folders that all of the files are separated into.
 // These file folders are assumed to be in the root package directory.
-#define PCDS_FOLDER ("pcd_files")
-#define PTS_FOLDER ("pts_files")
+#define PTS_IN_FOLDER ("indiv_pts")
+#define PTS_OUT_FOLDER ("combined_pts")
 #define VRML_FOLDER ("vrml_files")
-#define PCD_INFO_FOLDER (".")
+#define PTS_INFO_FOLDER (".")
 
 // These are our file extensions
 #define VRML_EXTENSION (".wrl")
@@ -74,11 +74,9 @@ int main(int argc, char** argv)
 
 void writePTS(const char* pts_filename, const char* root)
 {
-  // Create our pcd reading object.
-  pcl::PCDReader reader;
-
   // Here are our file streams.
-  std::ifstream pcds_in;
+  std::ifstream pts_info;
+  std::ifstream pts_in;
   std::ofstream pts_out;
 
   // The return value of a directory change or creation.
@@ -87,14 +85,14 @@ void writePTS(const char* pts_filename, const char* root)
   // Change directories to the root folder.
   if(chdir(root) == 0)
   {
-    if(chdir(PCD_INFO_FOLDER) == 0)
+    if(chdir(PTS_INFO_FOLDER) == 0)
     {
       // If we are in the right directory, connect to the PCD info file.
-      pcds_in.open(PCDS_FILE);
+      pts_info.open(PTS_INFO_FILE);
     }
     else
     {
-      ROS_INFO("PCD info file directory does not exist.");
+      ROS_INFO("PTS info file directory does not exist.");
     }
   }
   else
@@ -105,15 +103,15 @@ void writePTS(const char* pts_filename, const char* root)
   // If our root path is correct, continue.
   if(chdir(root) == 0)
   {
-    good_dir = chdir(PTS_FOLDER);
+    good_dir = chdir(PTS_OUT_FOLDER);
 
     // If we aren't in the right directory, make the directory.
     if(good_dir != 0)
     {
       // If we are successful in making the directory, change directories to the new directory.
-      if(mkdir(PTS_FOLDER, 0755) == 0)
+      if(mkdir(PTS_OUT_FOLDER, 0755) == 0)
       {
-        good_dir = chdir(PTS_FOLDER);
+        good_dir = chdir(PTS_OUT_FOLDER);
       }
       else
       {
@@ -121,7 +119,7 @@ void writePTS(const char* pts_filename, const char* root)
       }
     }
 
-    // If we are now in the correct directory, write the data to disk.
+    // If we are now in the correct directory, open an output pts stream.
     if(good_dir == 0)
     {
       // Create a file stream to the new pts file.
@@ -136,27 +134,28 @@ void writePTS(const char* pts_filename, const char* root)
   // Change directories to the root folder.
   if(chdir(root) == 0)
   {
-    if(chdir(PCDS_FOLDER) == 0)
+    if(chdir(PTS_IN_FOLDER) == 0)
     {
-      // Read clouds until we have read them all.
+      // Read pts files until we have read them all.
       do
       {
-        // This stores the current line we're working with from the pcd info file.
-        std::string pcd_info;
+        // This stores the current line we're working with from the pts info file.
+        std::string pts_info_line;
 
-        // Grab a line of pcd information from the info file.
-        getline(pcds_in, pcd_info);
+        // Grab a line of pts information from the info file.
+        getline(pts_info, pts_info_line);
 
         // Create an array of string parameters from the info we obtained.
         // All of the info should be comma delimited in the file.
         std::vector<std::string> params;
-        boost::split(params,pcd_info,boost::is_any_of(","));
+        boost::split(params,pts_info_line,boost::is_any_of(","));
 
         // If we have a valid line of 7 parameters.
         if(params.size() == 7)
         {
           // The first parameter of an info line should be the file name.
           std::string filename = params[0];
+          filename += PTS_EXTENSION;
 
           // Convert the separated offset parameters from the text file to floats.
           float x = atof(params[1].c_str());
@@ -170,33 +169,47 @@ void writePTS(const char* pts_filename, const char* root)
           Eigen::Affine3f transform;
           pcl::getTransformation (x, y, z, (DEG_TO_RAD*x_theta), (DEG_TO_RAD*y_theta), (DEG_TO_RAD*z_theta), transform);
 
-          // Create a blank cloud for storing the next set of data.
-          pcl::PointCloud<PointT>::Ptr cloud (new pcl::PointCloud<PointT> ());
+          // Open the pts file under this file name.
+          pts_in.open(filename.c_str());
 
-          // Read in the data to the blank cloud.
-          reader.read (filename+PCD_EXTENSION, *cloud);
-
-          // Manipulate the input cloud and store it.
-          for(unsigned int i = 0; i < cloud->points.size(); i++)
+          // Manipulate the input pts and store them.
+          do
           {
+            // Grab a point from the pts file.
+            std::string pts_line;
+            getline(pts_in, pts_line);
+
+            // Create an array of string parameters from the info we obtained.
+            std::vector<std::string> pt_info;
+            boost::split(pt_info,pts_line,boost::is_any_of(" "));
+
             // If x y and z are numbers, we print the line.
-            if(!((cloud->points[i].x != cloud->points[i].x) ||
-                 (cloud->points[i].y != cloud->points[i].y) ||
-                 (cloud->points[i].z != cloud->points[i].z)))
+            if(pt_info.size() == 7)
             {
-              // Transform the point and store it back to the cloud object.
-              cloud->points[i] = pcl::transformXYZ(transform, cloud->points[i]);
+              // Create and populate the temporary point.
+              pcl::PointXYZRGB tempPoint;
+              tempPoint.x = atof(pt_info[0].c_str());
+              tempPoint.y = atof(pt_info[1].c_str());
+              tempPoint.z = atof(pt_info[2].c_str());
+
+              // Transform the point and store it back.
+              tempPoint = pcl::transformXYZ(transform, tempPoint);
 
               // Print the distance information to the pts file followed by a trash buffer value.
-              pts_out << cloud->points[i].x << " " << cloud->points[i].y << " " << cloud->points[i].z << " 0 ";
+              pts_out << tempPoint.x << " " << tempPoint.y << " " << tempPoint.z << " 0 ";
 
               // Print the RGB information and finish with a new line character.
-              int rgb = *reinterpret_cast<int*>(&cloud->points[i].rgb);
-              pts_out << ((rgb >> 16) & 0xff) << " " << ((rgb >> 8) & 0xff) << " " << (rgb & 0xff) << "\n";
+              pts_out << pt_info[4] << " " << pt_info[5] << " " << pt_info[6] << "\n";
             }
+          }while(!pts_in.eof());
+
+          // Close the input pts file.
+          if(pts_in.is_open())
+          {
+            pts_in.close();
           }
         }
-      }while(!pcds_in.eof());
+      }while(!pts_info.eof());
     }
   }
 
@@ -204,9 +217,14 @@ void writePTS(const char* pts_filename, const char* root)
   pts_out << "\n";
 
   // Close our input and output files.
-  if(pcds_in.is_open())
+  if(pts_info.is_open())
   {
-    pcds_in.close();
+    pts_info.close();
+  }
+
+  if(pts_in.is_open())
+  {
+    pts_in.close();
   }
 
   if(pts_out.is_open())
@@ -231,7 +249,7 @@ void writeVRML(const char* pts_filename, const char* vrml_filename, const char* 
   // Change directories to the root folder.
   if(chdir(root) == 0)
   {
-    if(chdir(PTS_FOLDER) == 0)
+    if(chdir(PTS_OUT_FOLDER) == 0)
     {
       // If we are in the right directory, connect to the pts file.
       pts_in.open(pts_filename);
